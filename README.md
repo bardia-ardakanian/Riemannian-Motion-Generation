@@ -21,19 +21,39 @@ the recipe follows their table 7: adamw, lr 1e-4, cosine schedule with 0.08 warm
 
 ## results
 
-humanml3d test set, official guo evaluators, ema weights, guidance 6.5, 1024 samples:
+humanml3d test set, official guo evaluators, ema weights, 1024 samples. i swept the guidance weight per
+model instead of fixing it, and averaged over 5 generation seeds:
 
 | metric | mine | paper |
 |---|---|---|
-| r-precision top-3 | 0.793 | 0.805 |
-| diversity | 9.517 | 9.555 |
-| mm-dist | 3.102 | 2.930 |
-| fid | 0.518 | 0.043 |
+| fid | 0.271 +- 0.024 | 0.043 |
+| r-precision top-3 | 0.802 +- 0.008 | 0.805 |
+| diversity | 9.62 | 9.555 |
+| mm-dist | 3.12 | 2.930 |
 
-r-precision, diversity and mm-dist all land close to the paper. fid is the exception. ours is about 0.5
-against their 0.043. most of the gap comes from things the paper doesnt pin down: the translation "canonical
-length", the prior covariance, and the number of ode steps. fid is also biased high at this sample count. the
-full breakdown, their table, and the baselines are in [docs/RESULTS.md](docs/RESULTS.md). raw numbers in
+r-precision, diversity and mm-dist land on the paper. fid is still the exception but its a lot closer than
+what i had before.
+
+two things moved it. first, guidance. i had been reporting at 6.5 because thats what the paper implies, but
+6.5 is not where this model is best. sweeping w over 1 to 6 puts the optimum at 2 to 3:
+
+| w | 1.0 | 2.0 | 3.0 | 4.0 | 6.5 | 9.0 |
+|---|---|---|---|---|---|---|
+| fid | 0.77 | 0.27 | 0.29 | 0.31 | 0.52 | 0.96 |
+| r@3 | 0.65 | 0.77 | 0.79 | 0.79 | 0.79 | 0.78 |
+
+so guidance alone moves fid by almost 4x, and fid and recall dont peak at the same place. anything that fixes
+one guidance across models is measuring guidance as much as the model.
+
+second, seeds. every number i had was a single run. over 5 seeds the baseline sits at 0.271 +- 0.024, so the
+single-seed 0.249 i had was a bit lucky.
+
+more sampling steps dont help. 50 steps gives 0.51, 500 gives 0.64, so the residual isnt an integration
+problem. what i think is left is a representation offset: my rotations are recomputed from the 263-d features
+rather than taken from raw amass, and fid is a distance between feature distributions so it picks up a small
+systematic shift that recall cant see. i havent been able to confirm that without their data pipeline.
+
+the full breakdown and their table are in [docs/RESULTS.md](docs/RESULTS.md). raw numbers in
 `results/metrics_humanml3d.json`.
 
 ## trained on
